@@ -1,11 +1,11 @@
 {
   "name": "Secure Notes Mobile",
-  "short_name": "SecureNotes",
-  "description": "Офлайн шифровальщик заметок (.txt)",
-  "start_url": "./index.html",
+  "short_name": "Notes",
+  "start_url": "/secure-notes-pwa/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#4CAF50",
+  "theme_color": "#0066cc",
+  "description": "Оффлайн-шифровальщик заметок с возможностью загрузки и сохранения",
   "icons": [
     {
       "src": "icon-192.png",
