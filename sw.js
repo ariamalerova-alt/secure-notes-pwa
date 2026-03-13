@@ -1,13 +1,20 @@
-// Простая заглушка Service Worker для офлайн PWA
 self.addEventListener('install', event => {
-  self.skipWaiting(); // сразу активировать SW
-});
-
-self.addEventListener('activate', event => {
-  event.waitUntil(clients.claim()); // брать контроль над всеми окнами
+  event.waitUntil(
+    caches.open('secure-notes-cache').then(cache => {
+      return cache.addAll([
+        '/',
+        '/index.html',
+        '/manifest.json',
+        '/icon.png'
+      ]);
+    })
+  );
 });
 
 self.addEventListener('fetch', event => {
-  // Стандартный fetch — просто пропускаем запрос дальше
-  event.respondWith(fetch(event.request));
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
+  );
 });
