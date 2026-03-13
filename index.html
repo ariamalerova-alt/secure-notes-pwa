@@ -30,16 +30,23 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
 
 .note-item {
   display:flex;
-  justify-content:space-between;
+  flex-direction:column; /* название сверху, ссылки снизу */
   font-size:14px;
-  margin:2px 0;
+  margin:6px 0; /* больше пространства между заметками */
+  padding:4px;
+  border-bottom:1px solid #ddd; /* разделитель между заметками */
+}
+.note-title {
+  font-weight:bold;
+  font-size:16px; /* чуть больше, чтобы название выделялось */
+  margin-bottom:2px;
 }
 .note-links a {
-  margin-left:4px;
+  margin-right:8px;
   text-decoration:underline;
   color:#0066cc;
   font-size:15px; /* чуть больше для удобного нажатия */
-  padding:2px 4px; /* чуть увеличенная "мишень" для пальца */
+  padding:2px 4px;
 }
 </style>
 </head>
@@ -169,13 +176,13 @@ function loadNotes(){
       const dateFormatted = note.date.replace(", ","-");
       const div=document.createElement("div");
       div.className="note-item";
-      div.innerHTML = `<span class="note-title">${note.title}-${dateFormatted}</span>
-        <span class="note-links">
-          <a href="#" onclick="openNote(${note.id})">Open</a> |
-          <a href="#" onclick="downloadNote(${note.id})">Download</a> |
-          <a href="#" onclick="renameNote(${note.id})">Rename</a> |
+      div.innerHTML = `<div class="note-title">${note.title}-${dateFormatted}</div>
+        <div class="note-links">
+          <a href="#" onclick="openNote(${note.id})">Open</a>
+          <a href="#" onclick="downloadNote(${note.id})">Download</a>
+          <a href="#" onclick="renameNote(${note.id})">Rename</a>
           <a href="#" onclick="deleteNote(${note.id})">Delete</a>
-        </span>`;
+        </div>`;
       list.appendChild(div);
     });
   };
