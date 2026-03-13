@@ -8,35 +8,55 @@
 body { font-family:sans-serif; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; }
 h2,h3 { text-align:center; margin:10px; }
 textarea { flex:1; width:100%; font-size:18px; padding:10px; box-sizing:border-box; }
-input,button { font-size:18px; padding:10px; margin:5px; box-sizing:border-box; }
-#buttons { display:flex; justify-content:space-between; flex-wrap:wrap; }
-#notesList div { margin:5px; padding:5px; border:1px solid #ccc; border-radius:5px; }
-#lockScreen{
-position:fixed; top:0; left:0; width:100%; height:100%; background:#111; color:white;
-display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:999;
+input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; box-sizing:border-box; }
+
+#buttons {
+  display:flex;
+  flex-direction:column;
+  margin:5px;
 }
-#pinInput{font-size:24px; padding:10px; margin:10px; text-align:center; width:150px;}
+#buttons .row1 { display:flex; justify-content:space-between; gap:5px; }
+#buttons .row1 button { flex:1; font-size:17px; padding:10px; }
+#buttons .row2 button { width:100%; font-size:17px; padding:10px; margin-top:5px; }
+
+#notesList {
+  max-height:150px;
+  overflow-y:auto;
+  padding:5px;
+  border:1px solid #ccc;
+  border-radius:5px;
+  margin:5px 10px 10px 10px;
+}
+
+.note-item {
+  display:flex;
+  justify-content:space-between;
+  font-size:14px;
+  margin:2px 0;
+}
+.note-links a {
+  margin-left:4px;
+  text-decoration:underline;
+  color:#0066cc;
+  font-size:13px;
+}
 </style>
 </head>
 <body>
 
-<!-- Lock Screen -->
-<div id="lockScreen">
-<h2>🔒 Secure Notes</h2>
-<input type="password" id="pinInput" placeholder="Введите PIN">
-<button onclick="unlock()">Разблокировать</button>
-<button onclick="changePIN()">Сменить PIN</button>
-<button onclick="disablePIN()">Отключить PIN</button>
-</div>
-
 <h2>Secure Notes</h2>
 <textarea id="note" placeholder="Введите заметку…"></textarea>
 <input type="password" id="password" placeholder="Пароль">
+
 <div id="buttons">
-  <button onclick="encryptSave()">Encrypt & Save</button>
-  <button onclick="decryptCopy()">Decrypt & Copy</button>
-  <button onclick="loadFile()">Load File</button>
-  <button onclick="clearNote()">Очистить</button>
+  <div class="row1">
+    <button onclick="encryptSave()">Encrypt & Save</button>
+    <button onclick="loadFile()">Load File</button>
+    <button onclick="decryptCopy()">Decrypt & Copy</button>
+  </div>
+  <div class="row2">
+    <button onclick="clearNote()">Очистить</button>
+  </div>
 </div>
 
 <h3>Saved Notes</h3>
@@ -45,51 +65,13 @@ display:flex; flex-direction:column; justify-content:center; align-items:center;
 <input type="file" id="fileInput" style="display:none" />
 
 <script>
-// ===================== PIN Management =====================
-let PIN = localStorage.getItem("userPIN");
-if(!PIN){
-  PIN = prompt("Придумайте PIN для доступа к приложению:");
-  localStorage.setItem("userPIN", PIN);
-}
-
-function unlock(){
-  const entered = document.getElementById("pinInput").value;
-  if(entered === localStorage.getItem("userPIN")){
-    document.getElementById("lockScreen").style.display="none";
-    loadNotes();
-  } else alert("Неверный PIN");
-}
-
-function changePIN(){
-  const newPIN = prompt("Введите новый PIN:");
-  if(newPIN){
-    localStorage.setItem("userPIN", newPIN);
-    alert("PIN обновлён!");
-  }
-}
-
-function disablePIN(){
-  localStorage.removeItem("userPIN");
-  document.getElementById("lockScreen").style.display="none";
-  alert("Блокировка PIN отключена");
-}
-
-// Блокировка при сворачивании/возврате
-window.addEventListener('visibilitychange', () => {
-  if(localStorage.getItem("userPIN") && document.hidden){
-    document.getElementById("lockScreen").style.display = "flex";
-    document.getElementById("note").value = "";
-    document.getElementById("password").value = "";
-  }
-});
-
-// ===================== Crypto & Storage =====================
+// ===================== IndexedDB =====================
 let db;
-const request = indexedDB.open("SecureNotesDB",1);
-request.onupgradeneeded = e => { db = e.target.result; db.createObjectStore("notes",{keyPath:"id",autoIncrement:true}); };
-request.onsuccess = e => { db = e.target.result; loadNotes(); };
+const request=indexedDB.open("SecureNotesDB",1);
+request.onupgradeneeded=e=>{ db=e.target.result; db.createObjectStore("notes",{keyPath:"id",autoIncrement:true}); };
+request.onsuccess=e=>{ db=e.target.result; loadNotes(); };
 
-// ===================== Key Generation =====================
+// ===================== Crypto =====================
 async function getKey(password,salt){
   const enc=new TextEncoder();
   const keyMaterial=await crypto.subtle.importKey("raw",enc.encode(password),{name:"PBKDF2"},false,["deriveKey"]);
@@ -100,7 +82,7 @@ async function getKey(password,salt){
 async function encryptSave(){
   const text=document.getElementById("note").value;
   const password=document.getElementById("password").value;
-  if(!text||!password){alert("Введите текст и пароль!");return;}
+  if(!text||!password){alert("Введите текст и пароль!"); return;}
   const enc=new TextEncoder();
   const salt=crypto.getRandomValues(new Uint8Array(16));
   const iv=crypto.getRandomValues(new Uint8Array(12));
@@ -110,19 +92,18 @@ async function encryptSave(){
   const ciphertext=btoa(JSON.stringify(data));
   document.getElementById("note").value=ciphertext;
 
-  // Сохраняем в IndexedDB с названием
   const title=prompt("Название заметки:")||"Без названия";
   const tx=db.transaction("notes","readwrite");
   const store=tx.objectStore("notes");
   store.add({title:title,date:new Date().toLocaleString(),data:ciphertext});
-  alert("Заметка сохранена!");
   loadNotes();
+  alert("Заметка сохранена!");
 }
 
 // ===================== Decrypt & Copy =====================
 async function decryptCopy(){
   const password=document.getElementById("password").value;
-  if(!password){alert("Введите пароль!");return;}
+  if(!password){alert("Введите пароль!"); return;}
   try{
     const ciphertext=document.getElementById("note").value;
     const data=JSON.parse(atob(ciphertext));
@@ -136,7 +117,7 @@ async function decryptCopy(){
     textarea.value=decryptedText;
     textarea.focus();
     textarea.select();
-    try { await navigator.clipboard.writeText(decryptedText); } catch { document.execCommand('copy'); }
+    try{await navigator.clipboard.writeText(decryptedText);}catch{document.execCommand('copy');}
     alert("Заметка расшифрована и скопирована!");
     autoClear();
   } catch(e){alert("Ошибка! Неверный пароль или повреждённые данные.");}
@@ -162,7 +143,6 @@ function loadFile(){
     const reader=new FileReader();
     reader.onload=evt=>{
       document.getElementById("note").value=evt.target.result;
-      alert("Файл загружен!");
     };
     reader.readAsText(file);
   }
@@ -172,7 +152,7 @@ function loadFile(){
 function clearNote(){
   document.getElementById("note").value="";
   document.getElementById("password").value="";
-  alert("Поле очищено!");
+  // убрали alert, чтобы ручная очистка была тихой
 }
 
 // ===================== Notes List =====================
@@ -186,12 +166,14 @@ function loadNotes(){
     list.innerHTML="";
     notes.forEach(note=>{
       const div=document.createElement("div");
-      div.innerHTML=
-        "<b>"+note.title+"</b><br>"+note.date+"<br>"+
-        "<button onclick='openNote("+note.id+")'>Open</button>"+
-        "<button onclick='downloadNote("+note.id+")'>Download</button>"+
-        "<button onclick='renameNote("+note.id+")'>Rename</button>"+
-        "<button onclick='deleteNote("+note.id+")'>Delete</button>";
+      div.className="note-item";
+      div.innerHTML=`<span class="note-title">${note.title}</span> — ${note.date} 
+        <span class="note-links">
+          <a href="#" onclick="openNote(${note.id})">Open</a> |
+          <a href="#" onclick="downloadNote(${note.id})">Download</a> |
+          <a href="#" onclick="renameNote(${note.id})">Rename</a> |
+          <a href="#" onclick="deleteNote(${note.id})">Delete</a>
+        </span>`;
       list.appendChild(div);
     });
   };
@@ -201,9 +183,7 @@ function openNote(id){
   const tx=db.transaction("notes","readonly");
   const store=tx.objectStore("notes");
   const request=store.get(id);
-  request.onsuccess=function(){
-    document.getElementById("note").value=request.result.data;
-  };
+  request.onsuccess=function(){document.getElementById("note").value=request.result.data;}
 }
 
 function downloadNote(id){
