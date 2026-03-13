@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Secure Notes Mobile (.txt)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body { font-family:sans-serif; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; }
+h2 { text-align:center; margin:10px; }
+textarea { flex:1; width:100%; font-size:18px; padding:10px; box-sizing:border-box; }
+input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:10px; box-sizing:border-box; }
+button { font-size:18px; padding:12px; margin:5px; flex:1; }
+#buttons { display:flex; justify-content:space-between; flex-wrap:wrap; }
+</style>
+
+<!-- PWA подключение -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4CAF50">
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(() => console.log('Service Worker зарегистрирован!'))
+    .catch(err => console.log('Ошибка регистрации SW:', err));
+}
+</script>
+
+</head>
+<body>
+
+<h2>Secure Notes Mobile (.txt)</h2>
+<textarea id="note" placeholder="Введите заметку…"></textarea>
+<input type="password" id="password" placeholder="Пароль">
+<div id="buttons">
+  <button onclick="encryptSave()">Encrypt & Save</button>
+  <button onclick="decryptCopy()">Decrypt & Copy</button>
+  <button onclick="loadFile()">Load File</button>
+  <button onclick="clearNote()">Очистить</button>
+</div>
+
+<input type="file" id="fileInput" style="display:none" />
+
+<script>
+// ------------------------
+// Криптография
+async function getKey(password, salt){
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", enc.encode(password),
+    {name: "PBKDF2"}, false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt","decrypt"]
+  );
+}
+
+// ------------------------
+// Encrypt & Save
+async function encryptSave(){
+  const text = document.getElementById("note").value;
+  const password = document.getElementById("password").value;
+  if(!text || !password){ alert("Введите текст и пароль!"); return; }
+
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await getKey(password, salt);
+
+  const encrypted = await crypto.subtle.encrypt(
+    {name:"AES-GCM", iv:iv}, key, enc.encode(text)
+  );
+
+  const data = { salt:Array.from(salt), iv:Array.from(iv), data:Array.from(new Uint8Array(encrypted)) };
+  const ciphertext = btoa(JSON.stringify(data));
+
+  document.getElementById("note").value = ciphertext;
+
+  const blob = new Blob([ciphertext], {type:"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+
+  const now = new Date();
+  const timestamp = now.getFullYear().toString()
+                  + ("0"+(now.getMonth()+1)).slice(-2)
+                  + ("0"+now.getDate()).slice(-2)
+                  + "_"
+                  + ("0"+now.getHours()).slice(-2)
+                  + ("0"+now.getMinutes()).slice(-2)
+                  + ("0"+now.getSeconds()).slice(-2);
+  a.download = "secure-note_" + timestamp + ".txt";
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  alert("Заметка зашифрована и показана на экране!");
+}
+
+// ------------------------
+// Decrypt & Copy
+async function decryptCopy(){
+  const password = document.getElementById("password").value;
+  if(!password){ alert("Введите пароль!"); return; }
+  try{
+    const ciphertext = document.getElementById("note").value;
+    const data = JSON.parse(atob(ciphertext));
+    const salt = new Uint8Array(data.salt);
+    const iv = new Uint8Array(data.iv);
+    const encrypted = new Uint8Array(data.data);
+
+    const key = await getKey(password, salt);
+    const decrypted = await crypto.subtle.decrypt(
+      {name:"AES-GCM", iv:iv}, key, encrypted
+    );
+
+    const dec = new TextDecoder();
+    const decryptedText = dec.decode(decrypted);
+
+    const textarea = document.getElementById("note");
+    textarea.value = decryptedText;
+    textarea.focus();
+    textarea.select();
+
+    try { await navigator.clipboard.writeText(decryptedText); }
+    catch { document.execCommand('copy'); }
+
+    alert("Заметка расшифрована и скопирована в буфер обмена!");
+  } catch(e){
+    alert("Ошибка! Неверный пароль или повреждённые данные.");
+  }
+}
+
+// ------------------------
+// Load File
+function loadFile(){
+  const fileInput = document.getElementById("fileInput");
+  fileInput.click();
+  fileInput.onchange = e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt){
+      document.getElementById("note").value = evt.target.result;
+      alert("Файл загружен!");
+    }
+    reader.readAsText(file);
+  }
+}
+
+// ------------------------
+// Очистка
+function clearNote(){
+  document.getElementById("note").value = "";
+  document.getElementById("password").value = "";
+  alert("Поле очищено!");
+}
+
+// ------------------------
+// Адаптация textarea под экран
+window.addEventListener('resize', () => {
+  const textarea = document.getElementById("note");
+  textarea.style.height = (window.innerHeight - textarea.offsetTop - 120) + "px";
+});
+</script>
+
+</body>
+</html>
