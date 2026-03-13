@@ -1,34 +1,13 @@
-const CACHE_NAME = 'secure-notes-cache-v1';
-const FILES_TO_CACHE = [
-  './index.html',
-  './manifest.json',
-  './sw.js',
-  './icon-192.png',
-  './icon-512.png'
-];
-
-self.addEventListener('install', evt => {
-  evt.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(FILES_TO_CACHE);
-    })
-  );
-  self.skipWaiting();
+// Простая заглушка Service Worker для офлайн PWA
+self.addEventListener('install', event => {
+  self.skipWaiting(); // сразу активировать SW
 });
 
-self.addEventListener('activate', evt => {
-  evt.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.map(key => key !== CACHE_NAME && caches.delete(key))
-      )
-    )
-  );
-  self.clients.claim();
+self.addEventListener('activate', event => {
+  event.waitUntil(clients.claim()); // брать контроль над всеми окнами
 });
 
-self.addEventListener('fetch', evt => {
-  evt.respondWith(
-    caches.match(evt.request).then(resp => resp || fetch(evt.request))
-  );
+self.addEventListener('fetch', event => {
+  // Стандартный fetch — просто пропускаем запрос дальше
+  event.respondWith(fetch(event.request));
 });
