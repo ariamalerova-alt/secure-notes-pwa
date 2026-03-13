@@ -2,237 +2,169 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Secure Notes PWA</title>
+<title>Secure Notes Mobile (.txt)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
 body { font-family:sans-serif; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; }
-h2,h3 { text-align:center; margin:10px; }
+h2 { text-align:center; margin:10px; }
 textarea { flex:1; width:100%; font-size:18px; padding:10px; box-sizing:border-box; }
-input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; box-sizing:border-box; }
-
-#buttons {
-  display:flex;
-  flex-direction:column;
-  margin:5px;
-}
-#buttons .row1 { display:flex; justify-content:space-between; gap:5px; }
-#buttons .row1 button { flex:1; font-size:17px; padding:10px; }
-#buttons .row2 button { width:100%; font-size:17px; padding:10px; margin-top:5px; }
-
-#notesList {
-  max-height:150px;
-  overflow-y:auto;
-  padding:5px;
-  border:1px solid #ccc;
-  border-radius:5px;
-  margin:5px 10px 10px 10px;
-}
-
-.note-item {
-  display:flex;
-  flex-direction:column; /* название сверху, ссылки снизу */
-  font-size:14px;
-  margin:6px 0; /* больше пространства между заметками */
-  padding:4px;
-  border-bottom:1px solid #ddd; /* разделитель между заметками */
-}
-.note-title {
-  font-weight:bold;
-  font-size:16px; /* чуть больше, чтобы название выделялось */
-  margin-bottom:2px;
-}
-.note-links a {
-  margin-right:8px;
-  text-decoration:underline;
-  color:#0066cc;
-  font-size:15px; /* чуть больше для удобного нажатия */
-  padding:2px 4px;
-}
+input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:10px; box-sizing:border-box; }
+button { font-size:18px; padding:12px; margin:5px; flex:1; }
+#buttons { display:flex; justify-content:space-between; flex-wrap:wrap; }
 </style>
+
+<!-- PWA подключение -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4CAF50">
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(() => console.log('Service Worker зарегистрирован!'))
+    .catch(err => console.log('Ошибка регистрации SW:', err));
+}
+</script>
+
 </head>
 <body>
 
-<h2>Secure Notes</h2>
+<h2>Secure Notes Mobile (.txt)</h2>
 <textarea id="note" placeholder="Введите заметку…"></textarea>
 <input type="password" id="password" placeholder="Пароль">
-
 <div id="buttons">
-  <div class="row1">
-    <button onclick="encryptSave()">Encrypt & Save</button>
-    <button onclick="loadFile()">Load File</button>
-    <button onclick="decryptCopy()">Decrypt & Copy</button>
-  </div>
-  <div class="row2">
-    <button onclick="clearNote()">Очистить</button>
-  </div>
+  <button onclick="encryptSave()">Encrypt & Save</button>
+  <button onclick="decryptCopy()">Decrypt & Copy</button>
+  <button onclick="loadFile()">Load File</button>
+  <button onclick="clearNote()">Очистить</button>
 </div>
-
-<h3>Saved Notes</h3>
-<div id="notesList"></div>
 
 <input type="file" id="fileInput" style="display:none" />
 
 <script>
-// ===================== IndexedDB =====================
-let db;
-const request=indexedDB.open("SecureNotesDB",1);
-request.onupgradeneeded=e=>{ db=e.target.result; db.createObjectStore("notes",{keyPath:"id",autoIncrement:true}); };
-request.onsuccess=e=>{ db=e.target.result; loadNotes(); };
-
-// ===================== Crypto =====================
-async function getKey(password,salt){
-  const enc=new TextEncoder();
-  const keyMaterial=await crypto.subtle.importKey("raw",enc.encode(password),{name:"PBKDF2"},false,["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:100000,hash:"SHA-256"},keyMaterial,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+// ------------------------
+// Криптография
+async function getKey(password, salt){
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", enc.encode(password),
+    {name: "PBKDF2"}, false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt","decrypt"]
+  );
 }
 
-// ===================== Encrypt & Save =====================
+// ------------------------
+// Encrypt & Save
 async function encryptSave(){
-  const text=document.getElementById("note").value;
-  const password=document.getElementById("password").value;
-  if(!text||!password){alert("Введите текст и пароль!"); return;}
-  const enc=new TextEncoder();
-  const salt=crypto.getRandomValues(new Uint8Array(16));
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const key=await getKey(password,salt);
-  const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},key,enc.encode(text));
-  const data={salt:Array.from(salt),iv:Array.from(iv),data:Array.from(new Uint8Array(encrypted))};
-  const ciphertext=btoa(JSON.stringify(data));
-  document.getElementById("note").value=ciphertext;
+  const text = document.getElementById("note").value;
+  const password = document.getElementById("password").value;
+  if(!text || !password){ alert("Введите текст и пароль!"); return; }
 
-  const title=prompt("Название заметки:")||"Без названия";
-  const tx=db.transaction("notes","readwrite");
-  const store=tx.objectStore("notes");
-  store.add({title:title,date:new Date().toLocaleString(),data:ciphertext});
-  loadNotes();
-  alert("Заметка сохранена!");
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await getKey(password, salt);
+
+  const encrypted = await crypto.subtle.encrypt(
+    {name:"AES-GCM", iv:iv}, key, enc.encode(text)
+  );
+
+  const data = { salt:Array.from(salt), iv:Array.from(iv), data:Array.from(new Uint8Array(encrypted)) };
+  const ciphertext = btoa(JSON.stringify(data));
+
+  document.getElementById("note").value = ciphertext;
+
+  const blob = new Blob([ciphertext], {type:"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+
+  const now = new Date();
+  const timestamp = now.getFullYear().toString()
+                  + ("0"+(now.getMonth()+1)).slice(-2)
+                  + ("0"+now.getDate()).slice(-2)
+                  + "_"
+                  + ("0"+now.getHours()).slice(-2)
+                  + ("0"+now.getMinutes()).slice(-2)
+                  + ("0"+now.getSeconds()).slice(-2);
+  a.download = "secure-note_" + timestamp + ".txt";
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  alert("Заметка зашифрована и показана на экране!");
 }
 
-// ===================== Decrypt & Copy =====================
+// ------------------------
+// Decrypt & Copy
 async function decryptCopy(){
-  const password=document.getElementById("password").value;
-  if(!password){alert("Введите пароль!"); return;}
+  const password = document.getElementById("password").value;
+  if(!password){ alert("Введите пароль!"); return; }
   try{
-    const ciphertext=document.getElementById("note").value;
-    const data=JSON.parse(atob(ciphertext));
-    const salt=new Uint8Array(data.salt);
-    const iv=new Uint8Array(data.iv);
-    const encrypted=new Uint8Array(data.data);
-    const key=await getKey(password,salt);
-    const decrypted=await crypto.subtle.decrypt({name:"AES-GCM",iv:iv},key,encrypted);
-    const decryptedText=new TextDecoder().decode(decrypted);
-    const textarea=document.getElementById("note");
-    textarea.value=decryptedText;
+    const ciphertext = document.getElementById("note").value;
+    const data = JSON.parse(atob(ciphertext));
+    const salt = new Uint8Array(data.salt);
+    const iv = new Uint8Array(data.iv);
+    const encrypted = new Uint8Array(data.data);
+
+    const key = await getKey(password, salt);
+    const decrypted = await crypto.subtle.decrypt(
+      {name:"AES-GCM", iv:iv}, key, encrypted
+    );
+
+    const dec = new TextDecoder();
+    const decryptedText = dec.decode(decrypted);
+
+    const textarea = document.getElementById("note");
+    textarea.value = decryptedText;
     textarea.focus();
     textarea.select();
-    try{await navigator.clipboard.writeText(decryptedText);}catch{document.execCommand('copy');}
-    alert("Заметка расшифрована и скопирована!");
-    autoClear();
-  } catch(e){alert("Ошибка! Неверный пароль или повреждённые данные.");}
+
+    try { await navigator.clipboard.writeText(decryptedText); }
+    catch { document.execCommand('copy'); }
+
+    alert("Заметка расшифрована и скопирована в буфер обмена!");
+  } catch(e){
+    alert("Ошибка! Неверный пароль или повреждённые данные.");
+  }
 }
 
-// ===================== Auto Clear =====================
-function autoClear(){
-  clearTimeout(window.clearTimer);
-  window.clearTimer=setTimeout(()=>{
-    document.getElementById("note").value="";
-    document.getElementById("password").value="";
-    alert("Заметка автоматически очищена!");
-  },30000);
-}
-
-// ===================== Load File =====================
+// ------------------------
+// Load File
 function loadFile(){
-  const fileInput=document.getElementById("fileInput");
+  const fileInput = document.getElementById("fileInput");
   fileInput.click();
-  fileInput.onchange=e=>{
-    const file=e.target.files[0];
+  fileInput.onchange = e => {
+    const file = e.target.files[0];
     if(!file) return;
-    const reader=new FileReader();
-    reader.onload=evt=>{
-      document.getElementById("note").value=evt.target.result;
-    };
+    const reader = new FileReader();
+    reader.onload = function(evt){
+      document.getElementById("note").value = evt.target.result;
+      alert("Файл загружен!");
+    }
     reader.readAsText(file);
   }
 }
 
-// ===================== Clear =====================
+// ------------------------
+// Очистка
 function clearNote(){
-  document.getElementById("note").value="";
-  document.getElementById("password").value="";
-  // alert убран для ручной очистки
+  document.getElementById("note").value = "";
+  document.getElementById("password").value = "";
+  alert("Поле очищено!");
 }
 
-// ===================== Notes List =====================
-function loadNotes(){
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.getAll();
-  request.onsuccess=function(){
-    const notes=request.result;
-    const list=document.getElementById("notesList");
-    list.innerHTML="";
-    notes.forEach(note=>{
-      const dateFormatted = note.date.replace(", ","-");
-      const div=document.createElement("div");
-      div.className="note-item";
-      div.innerHTML = `<div class="note-title">${note.title}-${dateFormatted}</div>
-        <div class="note-links">
-          <a href="#" onclick="openNote(${note.id})">Open</a>
-          <a href="#" onclick="downloadNote(${note.id})">Download</a>
-          <a href="#" onclick="renameNote(${note.id})">Rename</a>
-          <a href="#" onclick="deleteNote(${note.id})">Delete</a>
-        </div>`;
-      list.appendChild(div);
-    });
-  };
-}
-
-function openNote(id){
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.get(id);
-  request.onsuccess=function(){document.getElementById("note").value=request.result.data;}
-}
-
-function downloadNote(id){
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.get(id);
-  request.onsuccess=function(){
-    const note=request.result;
-    const blob=new Blob([note.data],{type:"text/plain"});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    const filename=note.title.replace(/\s+/g,"_")+".txt";
-    a.download=filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-}
-
-function renameNote(id){
-  const newTitle=prompt("Новое название:");
-  if(!newTitle) return;
-  const tx=db.transaction("notes","readwrite");
-  const store=tx.objectStore("notes");
-  const request=store.get(id);
-  request.onsuccess=function(){
-    const note=request.result;
-    note.title=newTitle;
-    store.put(note);
-    loadNotes();
-  };
-}
-
-function deleteNote(id){
-  if(!confirm("Удалить заметку?")) return;
-  const tx=db.transaction("notes","readwrite");
-  const store=tx.objectStore("notes");
-  store.delete(id);
-  loadNotes();
-}
+// ------------------------
+// Адаптация textarea под экран
+window.addEventListener('resize', () => {
+  const textarea = document.getElementById("note");
+  textarea.style.height = (window.innerHeight - textarea.offsetTop - 120) + "px";
+});
 </script>
 
 </body>
+
 </html>
