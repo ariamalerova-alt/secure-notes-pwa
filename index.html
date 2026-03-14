@@ -205,6 +205,17 @@ function deleteNote(id){
   store.delete(id);
   loadNotes();
 }
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+
+    // проверка обновлений каждые 30 секунд
+    setInterval(() => {
+      reg.update();
+    }, 30000);
+
+  });
+}
 </script>
 
 </body>
