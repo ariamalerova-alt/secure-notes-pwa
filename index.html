@@ -98,6 +98,19 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
   border-bottom: none;
 }
 
+.share-handle {
+  width: 40px;             /* ширина полоски */
+  height: 4px;             /* толщина */
+  background: #ccc;        /* светло-серая */
+  border-radius: 2px;      /* закругленные края */
+  margin: 8px auto;        /* сверху и снизу немного места, по центру */
+}
+
+/* Тёмная тема для полоски */
+body.dark .share-handle {
+  background: #666;
+}
+
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
@@ -444,6 +457,7 @@ window.addEventListener("load",()=>{
 
 <div id="shareMenu" onclick="closeShareMenu()">
   <div class="share-sheet" onclick="event.stopPropagation()">
+    <div class="share-handle"></div> <!-- полоска сверху -->
     <div class="share-option" onclick="shareAsText()">🔒 Encrypted text</div>
     <div class="share-option" onclick="shareAsFile()">📄 TXT file</div>
   </div>
