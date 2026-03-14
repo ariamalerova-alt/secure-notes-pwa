@@ -366,89 +366,74 @@ function deleteNote(id){
 }
 
 
-// ===================== SHARE MENU =====================
+// ===== SHARE MENU =====
 
 let currentShareNote = null;
 
-function openShareMenu(id){
+function shareNote(id){
   currentShareNote = id;
-  const shareMenu = document.getElementById("shareMenu");
-  if(shareMenu) shareMenu.style.display = "flex";
+  document.getElementById("shareMenu").style.display = "flex";
 }
 
 function closeShareMenu(){
-  const shareMenu = document.getElementById("shareMenu");
-  if(shareMenu) shareMenu.style.display = "none";
+  document.getElementById("shareMenu").style.display = "none";
 }
 
 async function shareAsText(){
   closeShareMenu();
-  if(currentShareNote === null) return;
 
-  const tx = db.transaction("notes","readonly");
-  const store = tx.objectStore("notes");
-  const request = store.get(currentShareNote);
+  const tx=db.transaction("notes","readonly");
+  const store=tx.objectStore("notes");
+  const request=store.get(currentShareNote);
 
-  request.onsuccess = async function(){
-    const note = request.result;
-    if(!note) return;
+  request.onsuccess=async function(){
+    const note=request.result;
+
     if(navigator.share){
-      try {
-        await navigator.share({
-          title: note.title,
-          text: note.data
-        });
-      } catch(e){
-        alert("Не удалось поделиться текстом");
-      }
-    } else {
-      alert("Share не поддерживается");
+      await navigator.share({
+        title:note.title,
+        text:note.data
+      });
     }
   };
 }
 
 async function shareAsFile(){
   closeShareMenu();
-  if(currentShareNote === null) return;
 
-  const tx = db.transaction("notes","readonly");
-  const store = tx.objectStore("notes");
-  const request = store.get(currentShareNote);
+  const tx=db.transaction("notes","readonly");
+  const store=tx.objectStore("notes");
+  const request=store.get(currentShareNote);
 
-  request.onsuccess = async function(){
-    const note = request.result;
-    if(!note) return;
+  request.onsuccess=async function(){
+    const note=request.result;
 
     const filename = note.title.replace(/\s+/g,"_") + ".txt";
     const blob = new Blob([note.data], {type:"text/plain"});
     const file = new File([blob], filename, {type:"text/plain"});
 
     if(navigator.share && navigator.canShare({files:[file]})){
-      try {
-        await navigator.share({
-          title: note.title,
-          files:[file]
-        });
-      } catch(e){
-        alert("Не удалось поделиться файлом");
-      }
-    } else {
-      alert("Отправка файлов не поддерживается");
+      await navigator.share({
+        title:note.title,
+        files:[file]
+      });
     }
   };
 }
 
-// ===================== Share Menu Swipe / Close =====================
+// ===== SHARE MENU SWIPE =====
 (function(){
   const shareMenu = document.getElementById("shareMenu");
   const shareSheet = document.querySelector(".share-sheet");
   let startY = 0;
 
   if(shareSheet){
+    // фиксируем точку начала касания
     shareSheet.addEventListener("touchstart", e => {
       startY = e.touches[0].clientY;
     });
 
+    // отслеживаем движение пальца
     shareSheet.addEventListener("touchmove", e => {
       const currentY = e.touches[0].clientY;
       const diff = currentY - startY;
@@ -458,16 +443,9 @@ async function shareAsFile(){
     });
   }
 
-  if(shareMenu){
-    shareMenu.addEventListener("click", closeShareMenu);
-  }
+  // клик по затемнённому фону закрывает меню
+  shareMenu.addEventListener("click", closeShareMenu);
 })();
-
-// ===================== Prevent Share Menu from opening on load =====================
-window.addEventListener("load", () => {
-  const shareMenu = document.getElementById("shareMenu");
-  if(shareMenu) shareMenu.style.display = "none"; // гарантированно скрываем меню
-});
 </script>
 
 <script>
