@@ -263,10 +263,10 @@ function toggleTheme(){
 
   if(body.classList.contains("dark")){
     localStorage.setItem("theme","dark");
-    document.getElementById("themeBtn").innerText="☀ Light";
+    document.getElementById("themeBtn").innerText="☀";
   } else {
     localStorage.setItem("theme","light");
-    document.getElementById("themeBtn").innerText="🌙 Dark";
+    document.getElementById("themeBtn").innerText="🌙";
   }
 }
 
@@ -274,7 +274,7 @@ window.addEventListener("load",()=>{
   const saved=localStorage.getItem("theme");
   if(saved==="dark"){
     document.body.classList.add("dark");
-    document.getElementById("themeBtn").innerText="☀ Light";
+    document.getElementById("themeBtn").innerText="☀";
   }
 });
 </script>
