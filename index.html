@@ -420,11 +420,21 @@ window.addEventListener("load",()=>{
 });
 </script>
 
-<div id="shareMenu">
-  <div class="share-box">
-    <div onclick="shareAsText()">Encrypted text</div>
-    <div onclick="shareAsFile()">TXT file</div>
-    <div onclick="closeShareMenu()">Cancel</div>
+<div id="shareMenu" onclick="closeShareMenu()">
+  <div class="share-sheet" onclick="event.stopPropagation()">
+
+    <div class="share-option" onclick="shareAsText()">
+      🔒 Encrypted text
+    </div>
+
+    <div class="share-option" onclick="shareAsFile()">
+      📄 TXT file
+    </div>
+
+    <div class="share-option cancel" onclick="closeShareMenu()">
+      ✖  Cancel
+    </div>
+
   </div>
 </div>
 </body>
