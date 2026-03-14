@@ -24,11 +24,38 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
 .note-item { display:flex; flex-direction:column; font-size:14px; margin:6px 0; padding:4px; border-bottom:1px solid #ddd; }
 .note-title { font-weight:bold; font-size:16px; margin-bottom:2px; }
 .note-links a { margin-right:8px; text-decoration:underline; color:#0066cc; font-size:15px; padding:2px 4px; }
+.dark {
+  background:#121212;
+  color:#e0e0e0;
+}
+
+.dark textarea {
+  background:#1e1e1e;
+  color:#e0e0e0;
+}
+
+.dark input {
+  background:#1e1e1e;
+  color:#e0e0e0;
+}
+
+.dark #notesList {
+  border-color:#555;
+}
+
+.dark .note-item {
+  border-bottom:1px solid #444;
+}
+
+.dark a {
+  color:#4CAF50;
+}
 </style>
 </head>
 <body>
 
 <h2>Secure Notes</h2>
+<button onclick="toggleTheme()" id="themeBtn">🌙 Dark</button>
 <textarea id="note" placeholder="Введите заметку…"></textarea>
 <input type="password" id="password" placeholder="Пароль">
 
@@ -216,6 +243,26 @@ if ('serviceWorker' in navigator) {
 
   });
 }
+function toggleTheme(){
+  const body=document.body;
+  body.classList.toggle("dark");
+
+  if(body.classList.contains("dark")){
+    localStorage.setItem("theme","dark");
+    document.getElementById("themeBtn").innerText="☀ Light";
+  } else {
+    localStorage.setItem("theme","light");
+    document.getElementById("themeBtn").innerText="🌙 Dark";
+  }
+}
+
+window.addEventListener("load",()=>{
+  const saved=localStorage.getItem("theme");
+  if(saved==="dark"){
+    document.body.classList.add("dark");
+    document.getElementById("themeBtn").innerText="☀ Light";
+  }
+});
 </script>
 
 </body>
