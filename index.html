@@ -64,8 +64,10 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
 </head>
 <body>
 
-<h2>Secure Notes</h2>
-<button onclick="toggleTheme()" id="themeBtn">🌙 Dark</button>
+<div id="header">
+  <h2>Secure Notes</h2>
+  <button onclick="toggleTheme()" id="themeBtn">🌙</button>
+</div>
 <textarea id="note" placeholder="Введите заметку…"></textarea>
 <input type="password" id="password" placeholder="Пароль">
 
