@@ -1,4 +1,4 @@
-const CACHE_NAME = "secure-notes-cache-v3";
+const CACHE_NAME = "secure-notes-cache-v2";
 
 const urlsToCache = [
   "/",
@@ -8,10 +8,11 @@ const urlsToCache = [
   "/icon-512.png"
 ];
 
-// Установка
+// Установка Service Worker
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(urlsToCache))
   );
   self.skipWaiting();
 });
@@ -32,11 +33,15 @@ self.addEventListener("activate", event => {
   self.clients.claim();
 });
 
-// Fetch
+// Перехват запросов
 self.addEventListener("fetch", event => {
   event.respondWith(
-    caches.match(event.request).then(response => {
-      return response || fetch(event.request);
-    })
+    caches.match(event.request)
+      .then(response => {
+        if (response) {
+          return response; // из кэша
+        }
+        return fetch(event.request).catch(() => caches.match("/index.html"));
+      })
   );
 });
