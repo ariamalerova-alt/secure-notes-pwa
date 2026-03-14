@@ -243,20 +243,52 @@ async function shareNote(id){
   const store=tx.objectStore("notes");
   const request=store.get(id);
 
-  request.onsuccess=async function(){
-    const note=request.result;
+  request.onsuccess = async function(){
+    const note = request.result;
 
-    if(navigator.share){
-      try{
-        await navigator.share({
-          title: note.title,
-          text: note.data
-        });
-      }catch(e){
-        alert("Не удалось поделиться");
+    const choice = prompt(
+`Как отправить заметку?
+
+1 — Зашифрованный текст
+2 — TXT файл`
+    );
+
+    if(!choice) return;
+
+    // ================= TEXT =================
+    if(choice === "1"){
+      if(navigator.share){
+        try{
+          await navigator.share({
+            title: note.title,
+            text: note.data
+          });
+        }catch(e){
+          alert("Не удалось поделиться");
+        }
+      } else {
+        alert("Share не поддерживается");
       }
-    } else {
-      alert("Функция Share не поддерживается на этом устройстве");
+    }
+
+    // ================= FILE =================
+    if(choice === "2"){
+      const filename = note.title.replace(/\s+/g,"_") + ".txt";
+      const blob = new Blob([note.data], {type:"text/plain"});
+      const file = new File([blob], filename, {type:"text/plain"});
+
+      if(navigator.share && navigator.canShare({files:[file]})){
+        try{
+          await navigator.share({
+            title: note.title,
+            files:[file]
+          });
+        }catch(e){
+          alert("Не удалось поделиться");
+        }
+      } else {
+        alert("Отправка файлов не поддерживается");
+      }
     }
   };
 }
