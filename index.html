@@ -4,61 +4,80 @@
 <meta charset="UTF-8">
 <title>Secure Notes PWA</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
-<!-- Ссылка на манифест PWA -->
-<link rel="manifest" href="manifest.json">
-
 <style>
-body { font-family:sans-serif; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; }
-h2,h3 { text-align:center; margin:10px; }
+body { font-family:sans-serif; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; background-color:white; color:black; transition: background-color 0.3s, color 0.3s;}
+body.dark { background-color:#121212; color:white; }
+
+#header {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  position:relative;
+  padding:10px;
+  background-color:#4CAF50;
+  color:white;
+  border-bottom:1px solid #ccc;
+}
+
+#header h2 {
+  margin:0 auto;
+  font-size:20px;
+}
+
+#themeBtn {
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:20px;
+  padding:5px 8px;
+  border-radius:6px;
+  border:none;
+  background-color:white;
+  color:#4CAF50;
+  cursor:pointer;
+}
+
 textarea { flex:1; width:100%; font-size:18px; padding:10px; box-sizing:border-box; }
 input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; box-sizing:border-box; }
 
-#buttons { display:flex; flex-direction:column; margin:5px; }
+#buttons {
+  display:flex;
+  flex-direction:column;
+  margin:5px;
+}
 #buttons .row1 { display:flex; justify-content:space-between; gap:5px; }
 #buttons .row1 button { flex:1; font-size:17px; padding:10px; }
 #buttons .row2 button { width:100%; font-size:17px; padding:10px; margin-top:5px; }
 
-#notesList { max-height:150px; overflow-y:auto; padding:5px; border:1px solid #ccc; border-radius:5px; margin:5px 10px 10px 10px; }
-
-.note-item { display:flex; flex-direction:column; font-size:14px; margin:6px 0; padding:4px; border-bottom:1px solid #ddd; }
-.note-title { font-weight:bold; font-size:16px; margin-bottom:2px; }
-.note-links a { margin-right:8px; text-decoration:underline; color:#0066cc; font-size:15px; padding:2px 4px; }
-.dark {
-  background:#121212;
-  color:#e0e0e0;
+#notesList {
+  max-height:150px;
+  overflow-y:auto;
+  padding:5px;
+  border:1px solid #ccc;
+  border-radius:5px;
+  margin:5px 10px 10px 10px;
 }
 
-.dark button {
-  background:#2a2a2a;
-  color:#e0e0e0;
-  border:1px solid #555;
+.note-item {
+  display:flex;
+  flex-direction:column;
+  font-size:14px;
+  margin:6px 0;
+  padding:4px;
+  border-bottom:1px solid #ddd;
 }
-
-.dark button:active {
-  background:#3a3a3a;
+.note-title {
+  font-weight:bold;
+  font-size:16px;
+  margin-bottom:2px;
 }
-
-.dark textarea {
-  background:#1e1e1e;
-  color:#e0e0e0;
-}
-
-.dark input {
-  background:#1e1e1e;
-  color:#e0e0e0;
-}
-
-.dark #notesList {
-  border-color:#555;
-}
-
-.dark .note-item {
-  border-bottom:1px solid #444;
-}
-
-.dark a {
-  color:#4CAF50;
+.note-links a {
+  margin-right:8px;
+  text-decoration:underline;
+  color:#0066cc;
+  font-size:15px;
+  padding:2px 4px;
 }
 </style>
 </head>
@@ -68,6 +87,7 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
   <h2>Secure Notes</h2>
   <button onclick="toggleTheme()" id="themeBtn">🌙</button>
 </div>
+
 <textarea id="note" placeholder="Введите заметку…"></textarea>
 <input type="password" id="password" placeholder="Пароль">
 
@@ -244,29 +264,18 @@ function deleteNote(id){
   store.delete(id);
   loadNotes();
 }
-</script>
 
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').then(reg => {
-
-    // проверка обновлений каждые 30 секунд
-    setInterval(() => {
-      reg.update();
-    }, 30000);
-
-  });
-}
+// ===================== Theme Toggle =====================
 function toggleTheme(){
   const body=document.body;
   body.classList.toggle("dark");
-
+  const btn=document.getElementById("themeBtn");
   if(body.classList.contains("dark")){
     localStorage.setItem("theme","dark");
-    document.getElementById("themeBtn").innerText="☀ Light";
+    btn.innerText="☀️";
   } else {
     localStorage.setItem("theme","light");
-    document.getElementById("themeBtn").innerText="🌙 Dark";
+    btn.innerText="🌙";
   }
 }
 
@@ -274,7 +283,7 @@ window.addEventListener("load",()=>{
   const saved=localStorage.getItem("theme");
   if(saved==="dark"){
     document.body.classList.add("dark");
-    document.getElementById("themeBtn").innerText="☀ Light";
+    document.getElementById("themeBtn").innerText="☀️";
   }
 });
 </script>
