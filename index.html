@@ -69,7 +69,6 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
   height: 100%;
   background: rgba(0,0,0,0.4); /* затемнение фона */
   display: none;
-  display: flex;
   align-items: flex-end;   /* меню снизу */
   z-index: 1000;
 }
@@ -246,9 +245,11 @@ function loadNotes(){
   const request=store.getAll();
   request.onsuccess=function(){
     const notes=request.result;
-    const list=document.getElementById("notesList");
-    list.innerHTML="";
-    notes.forEach(note=>{
+notes.reverse();
+
+const list=document.getElementById("notesList");
+list.innerHTML="";
+notes.forEach(note=>{
       const dateFormatted = note.date.replace(", ","-");
       const div=document.createElement("div");
       div.className="note-item";
@@ -303,60 +304,7 @@ function renameNote(id){
 }
 
 async function shareNote(id){
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.get(id);
-
-  request.onsuccess = async function(){
-    const note = request.result;
-
-    const choice = prompt(
-`Как отправить заметку?
-
-1 — Зашифрованный текст
-2 — TXT файл`
-    );
-
-    if(!choice) return;
-
-    // ================= TEXT =================
-    if(choice === "1"){
-      if(navigator.share){
-        try{
-          await navigator.share({
-            title: note.title,
-            text: note.data
-          });
-        }catch(e){
-          alert("Не удалось поделиться");
-        }
-      } else {
-        alert("Share не поддерживается");
-      }
-    }
-
-    // ================= FILE =================
-    if(choice === "2"){
-      const filename = note.title.replace(/\s+/g,"_") + ".txt";
-      const blob = new Blob([note.data], {type:"text/plain"});
-      const file = new File([blob], filename, {type:"text/plain"});
-
-      if(navigator.share && navigator.canShare({files:[file]})){
-        try{
-          await navigator.share({
-            title: note.title,
-            files:[file]
-          });
-        }catch(e){
-          alert("Не удалось поделиться");
-        }
-      } else {
-        alert("Отправка файлов не поддерживается");
-      }
-    }
-  };
-}
-
+  
 function deleteNote(id){
   if(!confirm("Удалить заметку?")) return;
   const tx=db.transaction("notes","readwrite");
