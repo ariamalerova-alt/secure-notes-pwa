@@ -293,8 +293,15 @@ async function encryptSave() {
     const store = tx.objectStore("notes");
     store.add({title: title, date: new Date().toLocaleString(), data: ciphertext});
 
-    // ←←← ВОТ ЭТА СТРОКА БЫЛА УБРАНА — теперь возвращена
-    document.getElementById("note").value = ciphertext;
+    // Показываем зашифрованный текст
+    const textarea = document.getElementById("note");
+    textarea.value = ciphertext;
+
+    // Полное выделение после сохранения
+    setTimeout(() => {
+      textarea.focus();
+      textarea.select();
+    }, 100);
 
     await new Promise(r => tx.oncomplete = r);
     loadNotes();
@@ -320,19 +327,19 @@ async function decryptCopy() {
     const textarea = document.getElementById("note");
     textarea.value = decryptedText;
 
-    // Копируем в буфер без фокуса
-    try {
-      await navigator.clipboard.writeText(decryptedText);
-      alert("Расшифровано и скопировано в буфер!");
-    } catch (err) {
-      // fallback — всё-таки фокусируем для execCommand
+    // Сначала alert (чтобы клавиатура не мерцала)
+    alert("Расшифровано и скопировано в буфер!");
+
+    // После закрытия alert — полное выделение (как было раньше)
+    setTimeout(() => {
       textarea.focus();
       textarea.select();
-      if (document.execCommand('copy')) {
-        alert("Расшифровано и скопировано (старый способ)!");
-      } else {
-        alert("Расшифровано! Скопируйте текст вручную.");
-      }
+    }, 100);
+
+    try {
+      await navigator.clipboard.writeText(decryptedText);
+    } catch {
+      document.execCommand('copy');
     }
 
     autoClear();
