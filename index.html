@@ -348,12 +348,26 @@ function autoClear() {
 function loadFile() {
   const fileInput = document.getElementById("fileInput");
   fileInput.click();
+
   fileInput.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = evt => {
-      document.getElementById("note").value = evt.target.result;
+      const textarea = document.getElementById("note");
+
+      // Принудительно снимаем фокус и возвращаем → помогает Android/Chrome
+      textarea.blur();
+
+      // Устанавливаем значение
+      textarea.value = evt.target.result;
+
+      // Небольшой таймаут, чтобы браузер "увидел" изменения
+      setTimeout(() => {
+        textarea.focus();
+        // textarea.select();  // если хочешь сразу выделить — можно оставить, но часто не нужно
+      }, 50);   // 50 мс обычно хватает
     };
     reader.readAsText(file);
   };
