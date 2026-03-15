@@ -319,15 +319,22 @@ async function decryptCopy() {
 
     const textarea = document.getElementById("note");
     textarea.value = decryptedText;
-    textarea.focus();
-    textarea.select();
+
+    // Показываем alert СНАЧАЛА
+    alert("Расшифровано и скопировано в буфер!");
+
+    // Только ПОСЛЕ закрытия alert — фокус и выделение
+    setTimeout(() => {
+      textarea.focus();
+      textarea.select();
+    }, 100);  // 100 мс — чтобы точно после dismiss alert
+
     try {
       await navigator.clipboard.writeText(decryptedText);
-      alert("Расшифровано и скопировано в буфер!");
     } catch {
       document.execCommand('copy');
-      alert("Расшифровано! (скопируйте вручную — буфер недоступен)");
     }
+
     autoClear();
   } catch (e) {
     alert("Ошибка: " + e.message);
