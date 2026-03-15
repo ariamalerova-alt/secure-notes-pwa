@@ -371,17 +371,13 @@ function loadFile() {
     reader.onload = evt => {
       const textarea = document.getElementById("note");
 
-      // Принудительно снимаем фокус и возвращаем → помогает Android/Chrome
-      textarea.blur();
-
-      // Устанавливаем значение
+      textarea.blur();                 // снимаем старый фокус
       textarea.value = evt.target.result;
 
-      // Небольшой таймаут, чтобы браузер "увидел" изменения
       setTimeout(() => {
         textarea.focus();
-        // textarea.select();  // если хочешь сразу выделить — можно оставить, но часто не нужно
-      }, 50);   // 50 мс обычно хватает
+        textarea.select();             // ← главное: полное выделение
+      }, 100);
     };
     reader.readAsText(file);
   };
@@ -435,7 +431,14 @@ function openNote(id) {
   const store = tx.objectStore("notes");
   const request = store.get(id);
   request.onsuccess = function() {
-    document.getElementById("note").value = request.result.data;
+    const textarea = document.getElementById("note");
+    textarea.value = request.result.data;
+
+    // Полное выделение для длинных зашифрованных строк
+    setTimeout(() => {
+      textarea.focus();
+      textarea.select();
+    }, 100);
   };
 }
 
