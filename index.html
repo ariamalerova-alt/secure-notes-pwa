@@ -452,6 +452,17 @@ function closeShareMenu() {
   document.getElementById("shareMenu").style.display = "none";
 }
 
+function deleteNote(id) {
+  if (!confirm("Удалить заметку?")) return;
+
+  const tx = db.transaction("notes", "readwrite");
+  const store = tx.objectStore("notes");
+  store.delete(id);
+
+  tx.oncomplete = () => loadNotes();   // ← это главное исправление
+  tx.onerror = () => alert("Ошибка удаления");
+}
+
 async function shareAsText() {
   closeShareMenu();
   const tx = db.transaction("notes", "readonly");
