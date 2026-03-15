@@ -28,35 +28,28 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
   background:#121212;
   color:#e0e0e0;
 }
-
 .dark button {
   background:#2a2a2a;
   color:#e0e0e0;
   border:1px solid #555;
 }
-
 .dark button:active {
   background:#3a3a3a;
 }
-
 .dark textarea {
   background:#1e1e1e;
   color:#e0e0e0;
 }
-
 .dark input {
   background:#1e1e1e;
   color:#e0e0e0;
 }
-
 .dark #notesList {
   border-color:#555;
 }
-
 .dark .note-item {
   border-bottom:1px solid #444;
 }
-
 .dark a {
   color:#91FF59;
 }
@@ -67,15 +60,14 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0,0,0,0.4); /* затемнение фона */
+  background: rgba(0,0,0,0.4);
   display: none;
-  align-items: flex-end;   /* меню снизу */
+  align-items: flex-end;
   z-index: 1000;
 }
-
 .share-sheet {
-  width: 100%;           /* растягиваем на всю ширину */
-  max-width: 500px;      /* ограничение на больших экранах */
+  width: 100%;
+  max-width: 500px;
   background: white;
   border-radius: 16px 16px 0 0;
   padding: 12px 0;
@@ -83,54 +75,65 @@ input { font-size:18px; padding:10px; width:calc(100% - 20px); margin:5px 10px; 
   animation: slideUp 0.25s ease;
   display: flex;
   flex-direction: column;
-  gap: 12px;             /* расстояние между пунктами */
+  gap: 12px;
 }
-
 .share-option {
-  padding: 18px 0;       /* вертикальные отступы */
+  padding: 18px 0;
   font-size: 18px;
   text-align: center;
   border-bottom: 1px solid #eee;
 }
-
 .share-option:last-child {
   border-bottom: none;
 }
-
 .share-handle {
-  width: 40px;             /* ширина полоски */
-  height: 4px;             /* толщина */
-  background: #ccc;        /* светло-серая */
-  border-radius: 2px;      /* закругленные края */
-  margin: 8px auto;        /* сверху и снизу немного места, по центру */
+  width: 40px;
+  height: 4px;
+  background: #ccc;
+  border-radius: 2px;
+  margin: 8px auto;
 }
-
-/* Тёмная тема для полоски */
 body.dark .share-handle {
   background: #666;
 }
-
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
 }
-
-/* Тёмная тема */
 body.dark .share-sheet {
   background: #1f1f1f;
 }
-
 body.dark .share-option {
   border-bottom: 1px solid #333;
+}
+
+/* Новые стили для кнопки экспорта/импорта */
+#header {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+}
+#themeBtn {
+  font-size: 24px;
+}
+#dbMenuBtn {
+  font-size: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 </style>
 </head>
 <body>
 
 <div id="header">
-  <h2>Secure Notes</h2>
   <button onclick="toggleTheme()" id="themeBtn">🌙</button>
+  <h2>Secure Notes</h2>
+  <button id="dbMenuBtn" onclick="showDbMenu()">⋮</button>
 </div>
+
 <textarea id="note" placeholder="Введите заметку…"></textarea>
 <input type="password" id="password" placeholder="Пароль">
 
@@ -151,342 +154,470 @@ body.dark .share-option {
 <input type="file" id="fileInput" style="display:none" />
 
 <script>
+// ===================== Константы =====================
+const PBKDF_ITERATIONS = 600000;   // OWASP 2025-2026 рекомендация для SHA-256
+const SALT_LEN = 16;
+const IV_LEN = 12;
+
 // ===================== IndexedDB =====================
 let db;
-const request=indexedDB.open("SecureNotesDB",1);
-request.onupgradeneeded=e=>{ db=e.target.result; db.createObjectStore("notes",{keyPath:"id",autoIncrement:true}); };
-request.onsuccess=e=>{ db=e.target.result; loadNotes(); };
+const request = indexedDB.open("SecureNotesDB", 1);
+request.onupgradeneeded = e => {
+  db = e.target.result;
+  db.createObjectStore("notes", {keyPath: "id", autoIncrement: true});
+};
+request.onsuccess = e => {
+  db = e.target.result;
+  loadNotes();
+};
+
+// ===================== Helpers: новый формат =====================
+function uint8ArrayToBase64(arr) {
+  let binary = '';
+  const len = arr.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(arr[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 // ===================== Crypto =====================
-async function getKey(password,salt){
-  const enc=new TextEncoder();
-  const keyMaterial=await crypto.subtle.importKey("raw",enc.encode(password),{name:"PBKDF2"},false,["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:600000,hash:"SHA-256"},keyMaterial,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+async function getKey(password, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(password),
+    {name: "PBKDF2"},
+    false,
+    ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    {name: "PBKDF2", salt, iterations: PBKDF_ITERATIONS, hash: "SHA-256"},
+    keyMaterial,
+    {name: "AES-GCM", length: 256},
+    false,
+    ["encrypt", "decrypt"]
+  );
 }
 
-// ===================== Encrypt & Save =====================
-async function encryptSave(){
-  const text=document.getElementById("note").value;
-  const password=document.getElementById("password").value;
-  if(!text||!password){alert("Введите текст и пароль!"); return;}
-  const enc=new TextEncoder();
-  const salt=crypto.getRandomValues(new Uint8Array(16));
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const key=await getKey(password,salt);
-  const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},key,enc.encode(text));
-  const data={salt:Array.from(salt),iv:Array.from(iv),data:Array.from(new Uint8Array(encrypted))};
-  const ciphertext=btoa(JSON.stringify(data));
-  document.getElementById("note").value=ciphertext;
+// ===================== Encrypt =====================
+async function encrypt(text, password) {
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
+  const key = await getKey(password, salt);
+  const encrypted = await crypto.subtle.encrypt(
+    {name: "AES-GCM", iv},
+    key,
+    enc.encode(text)
+  );
 
-  const title=prompt("Название заметки:")||"Без названия";
-  const tx=db.transaction("notes","readwrite");
-  const store=tx.objectStore("notes");
-  store.add({title:title,date:new Date().toLocaleString(),data:ciphertext});
-  loadNotes();
-  alert("Заметка сохранена!");
+  const combined = new Uint8Array(SALT_LEN + IV_LEN + encrypted.byteLength);
+  combined.set(salt, 0);
+  combined.set(iv, SALT_LEN);
+  combined.set(new Uint8Array(encrypted), SALT_LEN + IV_LEN);
+
+  return uint8ArrayToBase64(combined);
 }
 
-// ===================== Decrypt & Copy =====================
-async function decryptCopy(){
-  const password=document.getElementById("password").value;
-  if(!password){alert("Введите пароль!"); return;}
-  try{
-    const ciphertext=document.getElementById("note").value;
-    const data=JSON.parse(atob(ciphertext));
-    const salt=new Uint8Array(data.salt);
-    const iv=new Uint8Array(data.iv);
-    const encrypted=new Uint8Array(data.data);
-    const key=await getKey(password,salt);
-    const decrypted=await crypto.subtle.decrypt({name:"AES-GCM",iv:iv},key,encrypted);
-    const decryptedText=new TextDecoder().decode(decrypted);
-    const textarea=document.getElementById("note");
-    textarea.value=decryptedText;
-    textarea.focus();
-    textarea.select();
-    try{await navigator.clipboard.writeText(decryptedText);}catch{document.execCommand('copy');}
-    alert("Заметка расшифрована и скопирована!");
-    autoClear();
-  } catch(e){alert("Ошибка! Неверный пароль или повреждённые данные.");}
-}
+// ===================== Decrypt (новый + старый формат) =====================
+async function decrypt(ciphertextBase64, password) {
+  let bytes;
+  try {
+    bytes = base64ToUint8Array(ciphertextBase64);
+  } catch {
+    throw new Error("Неверный формат данных");
+  }
 
-// ===================== Auto Clear =====================
-function autoClear(){
-  clearTimeout(window.clearTimer);
-  window.clearTimer=setTimeout(()=>{
-    document.getElementById("note").value="";
-    document.getElementById("password").value="";
-    alert("Заметка автоматически очищена!");
-  },30000);
-}
+  // Новый формат: salt + iv + data
+  if (bytes.length >= SALT_LEN + IV_LEN + 16) {  // минимум для осмысленного шифртекста
+    try {
+      const salt = bytes.subarray(0, SALT_LEN);
+      const iv = bytes.subarray(SALT_LEN, SALT_LEN + IV_LEN);
+      const data = bytes.subarray(SALT_LEN + IV_LEN);
+      const key = await getKey(password, salt);
+      const decrypted = await crypto.subtle.decrypt(
+        {name: "AES-GCM", iv},
+        key,
+        data
+      );
+      return new TextDecoder().decode(decrypted);
+    } catch {}
+  }
 
-// ===================== Load File =====================
-function loadFile(){
-  const fileInput=document.getElementById("fileInput");
-  fileInput.click();
-  fileInput.onchange=e=>{
-    const file=e.target.files[0];
-    if(!file) return;
-    const reader=new FileReader();
-    reader.onload=evt=>{ document.getElementById("note").value=evt.target.result; };
-    reader.readAsText(file);
+  // Старый формат (JSON)
+  try {
+    const json = JSON.parse(atob(ciphertextBase64));
+    const salt = new Uint8Array(json.salt);
+    const iv = new Uint8Array(json.iv);
+    const data = new Uint8Array(json.data);
+    const key = await getKey(password, salt);
+    const decrypted = await crypto.subtle.decrypt(
+      {name: "AES-GCM", iv},
+      key,
+      data
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch (e) {
+    throw new Error("Неверный пароль или повреждённые данные");
   }
 }
 
-// ===================== Clear =====================
-function clearNote(){
-  document.getElementById("note").value="";
-  document.getElementById("password").value="";
+// ===================== Encrypt & Save =====================
+async function encryptSave() {
+  const text = document.getElementById("note").value.trim();
+  const password = document.getElementById("password").value;
+  if (!text || !password) {
+    alert("Введите текст и пароль!");
+    return;
+  }
+  if (password.length < 12) {
+    if (!confirm("Пароль короче 12 символов — это небезопасно. Всё равно сохранить?")) return;
+  }
+
+  try {
+    const ciphertext = await encrypt(text, password);
+
+    const title = prompt("Название заметки:") || "Без названия";
+    const tx = db.transaction("notes", "readwrite");
+    const store = tx.objectStore("notes");
+    store.add({title, date: new Date().toLocaleString(), data: ciphertext});
+    await new Promise(r => tx.oncomplete = r);
+
+    loadNotes();
+    alert("Заметка сохранена (новый формат)!");
+  } catch (e) {
+    alert("Ошибка: " + e.message);
+  }
 }
 
-// ===================== Notes List =====================
-function loadNotes(){
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.getAll();
-  request.onsuccess=function(){
-    const notes=request.result;
+// ===================== Decrypt & Copy =====================
+async function decryptCopy() {
+  const password = document.getElementById("password").value;
+  if (!password) {
+    alert("Введите пароль!");
+    return;
+  }
+  const ciphertext = document.getElementById("note").value.trim();
+  if (!ciphertext) return;
+
+  try {
+    const decryptedText = await decrypt(ciphertext, password);
+
+    const textarea = document.getElementById("note");
+    textarea.value = decryptedText;
+    textarea.focus();
+    textarea.select();
+    try {
+      await navigator.clipboard.writeText(decryptedText);
+      alert("Расшифровано и скопировано в буфер!");
+    } catch {
+      document.execCommand('copy');
+      alert("Расшифровано! (скопируйте вручную — буфер недоступен)");
+    }
+    autoClear();
+  } catch (e) {
+    alert("Ошибка: " + e.message);
+  }
+}
+
+// ===================== Auto Clear (без изменений) =====================
+function autoClear() {
+  clearTimeout(window.clearTimer);
+  window.clearTimer = setTimeout(() => {
+    document.getElementById("note").value = "";
+    document.getElementById("password").value = "";
+    alert("Заметка автоматически очищена!");
+  }, 30000);
+}
+
+// ===================== Остальные функции (loadFile, clearNote, список заметок и т.д.) =====================
+function loadFile() {
+  const fileInput = document.getElementById("fileInput");
+  fileInput.click();
+  fileInput.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      document.getElementById("note").value = evt.target.result;
+    };
+    reader.readAsText(file);
+  };
+}
+
+function clearNote() {
+  document.getElementById("note").value = "";
+  document.getElementById("password").value = "";
+}
+
+function loadNotes() {
+  const tx = db.transaction("notes", "readonly");
+  const store = tx.objectStore("notes");
+  const request = store.getAll();
+  request.onsuccess = function() {
+    const notes = request.result;
     notes.reverse();
-const list=document.getElementById("notesList");
-    list.innerHTML="";
-    notes.forEach(note=>{
-      const dateFormatted = note.date.replace(", ","-");
-      const div=document.createElement("div");
-      div.className="note-item";
-      div.innerHTML = `<div class="note-title">${note.title}-${dateFormatted}</div>
-  <div class="note-links">
-    <a href="#" onclick="openNote(${note.id})">Open</a>
-    <a href="#" onclick="downloadNote(${note.id})">Download</a>
-    <a href="#" onclick="renameNote(${note.id})">Rename</a>
-    <a href="#" onclick="shareNote(${note.id})">Share</a>
-    <a href="#" onclick="deleteNote(${note.id})">Delete</a>
-  </div>`;
+    const list = document.getElementById("notesList");
+    list.innerHTML = "";
+    notes.forEach(note => {
+      const dateFormatted = note.date.replace(", ", "-");
+      const div = document.createElement("div");
+      div.className = "note-item";
+      div.innerHTML = `<div class="note-title">\( {note.title}- \){dateFormatted}</div>
+        <div class="note-links">
+          <a href="#" onclick="openNote(${note.id})">Open</a>
+          <a href="#" onclick="downloadNote(${note.id})">Download</a>
+          <a href="#" onclick="renameNote(${note.id})">Rename</a>
+          <a href="#" onclick="shareNote(${note.id})">Share</a>
+          <a href="#" onclick="deleteNote(${note.id})">Delete</a>
+        </div>`;
       list.appendChild(div);
     });
   };
 }
 
-function openNote(id){
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.get(id);
-  request.onsuccess=function(){document.getElementById("note").value=request.result.data;}
+function openNote(id) {
+  const tx = db.transaction("notes", "readonly");
+  const store = tx.objectStore("notes");
+  const request = store.get(id);
+  request.onsuccess = function() {
+    document.getElementById("note").value = request.result.data;
+  };
 }
 
-function downloadNote(id){
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.get(id);
-  request.onsuccess=function(){
-    const note=request.result;
-    const blob=new Blob([note.data],{type:"text/plain"});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    const filename=note.title.replace(/\s+/g,"_")+".txt";
-    a.download=filename;
+function downloadNote(id) {
+  const tx = db.transaction("notes", "readonly");
+  const store = tx.objectStore("notes");
+  const request = store.get(id);
+  request.onsuccess = function() {
+    const note = request.result;
+    const blob = new Blob([note.data], {type: "text/plain"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    const filename = note.title.replace(/\s+/g, "_") + ".txt";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
   };
 }
 
-function renameNote(id){
-  const newTitle=prompt("Новое название:");
-  if(!newTitle) return;
-  const tx=db.transaction("notes","readwrite");
-  const store=tx.objectStore("notes");
-  const request=store.get(id);
-  request.onsuccess=function(){
-    const note=request.result;
-    note.title=newTitle;
+function renameNote(id) {
+  const newTitle = prompt("Новое название:");
+  if (!newTitle) return;
+  const tx = db.transaction("notes", "readwrite");
+  const store = tx.objectStore("notes");
+  const request = store.get(id);
+  request.onsuccess = function() {
+    const note = request.result;
+    note.title = newTitle;
     store.put(note);
     loadNotes();
   };
 }
 
-async function shareNote(id){
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.get(id);
-
-  request.onsuccess = async function(){
-    const note = request.result;
-
-    const choice = prompt(
-`Как отправить заметку?
-
-1 — Зашифрованный текст
-2 — TXT файл`
-    );
-
-    if(!choice) return;
-
-    // ================= TEXT =================
-    if(choice === "1"){
-      if(navigator.share){
-        try{
-          await navigator.share({
-            title: note.title,
-            text: note.data
-          });
-        }catch(e){
-          alert("Не удалось поделиться");
-        }
-      } else {
-        alert("Share не поддерживается");
-      }
-    }
-
-    // ================= FILE =================
-    if(choice === "2"){
-      const filename = note.title.replace(/\s+/g,"_") + ".txt";
-      const blob = new Blob([note.data], {type:"text/plain"});
-      const file = new File([blob], filename, {type:"text/plain"});
-
-      if(navigator.share && navigator.canShare({files:[file]})){
-        try{
-          await navigator.share({
-            title: note.title,
-            files:[file]
-          });
-        }catch(e){
-          alert("Не удалось поделиться");
-        }
-      } else {
-        alert("Отправка файлов не поддерживается");
-      }
-    }
-  };
-}
-
-function deleteNote(id){
-  if(!confirm("Удалить заметку?")) return;
-  const tx=db.transaction("notes","readwrite");
-  const store=tx.objectStore("notes");
-  store.delete(id);
-  loadNotes();
-}
-
-
-// ===== SHARE MENU =====
-
 let currentShareNote = null;
 
-function shareNote(id){
+function shareNote(id) {
   currentShareNote = id;
   document.getElementById("shareMenu").style.display = "flex";
 }
 
-function closeShareMenu(){
+function closeShareMenu() {
   document.getElementById("shareMenu").style.display = "none";
 }
 
-async function shareAsText(){
+async function shareAsText() {
   closeShareMenu();
-
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.get(currentShareNote);
-
-  request.onsuccess=async function(){
-    const note=request.result;
-
-    if(navigator.share){
-      await navigator.share({
-        title:note.title,
-        text:note.data
-      });
+  const tx = db.transaction("notes", "readonly");
+  const store = tx.objectStore("notes");
+  const request = store.get(currentShareNote);
+  request.onsuccess = async function() {
+    const note = request.result;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: note.title, text: note.data });
+      } catch {}
     }
   };
 }
 
-async function shareAsFile(){
+async function shareAsFile() {
   closeShareMenu();
-
-  const tx=db.transaction("notes","readonly");
-  const store=tx.objectStore("notes");
-  const request=store.get(currentShareNote);
-
-  request.onsuccess=async function(){
-    const note=request.result;
-
-    const filename = note.title.replace(/\s+/g,"_") + ".txt";
-    const blob = new Blob([note.data], {type:"text/plain"});
-    const file = new File([blob], filename, {type:"text/plain"});
-
-    if(navigator.share && navigator.canShare({files:[file]})){
-      await navigator.share({
-        title:note.title,
-        files:[file]
-      });
+  const tx = db.transaction("notes", "readonly");
+  const store = tx.objectStore("notes");
+  const request = store.get(currentShareNote);
+  request.onsuccess = async function() {
+    const note = request.result;
+    const filename = note.title.replace(/\s+/g, "_") + ".txt";
+    const blob = new Blob([note.data], {type: "text/plain"});
+    const file = new File([blob], filename, {type: "text/plain"});
+    if (navigator.share && navigator.canShare({files: [file]})) {
+      try {
+        await navigator.share({ title: note.title, files: [file] });
+      } catch {}
     }
   };
 }
 
-// ===== SHARE MENU SWIPE =====
-(function(){
+// Swipe to close share menu
+(function() {
   const shareMenu = document.getElementById("shareMenu");
   const shareSheet = document.querySelector(".share-sheet");
   let startY = 0;
 
-  if(shareSheet){
-    // фиксируем точку начала касания
+  if (shareSheet) {
     shareSheet.addEventListener("touchstart", e => {
       startY = e.touches[0].clientY;
     });
-
-    // отслеживаем движение пальца
     shareSheet.addEventListener("touchmove", e => {
       const currentY = e.touches[0].clientY;
-      const diff = currentY - startY;
-      if(diff > 50){ // свайп вниз более 50px
-        closeShareMenu();
-      }
+      if (currentY - startY > 50) closeShareMenu();
     });
   }
-
-  // клик по затемнённому фону закрывает меню
   shareMenu.addEventListener("click", closeShareMenu);
 })();
+
+// ===================== Новая функция: меню экспорт/импорт =====================
+function showDbMenu() {
+  const choice = prompt(
+`Меню хранилища:
+
+1 — Экспорт всего (зашифрованный файл)
+2 — Импорт хранилища (выберите .enc файл)
+
+Введите номер:`
+  );
+
+  if (choice === "1") exportDatabase();
+  else if (choice === "2") importDatabase();
+}
+
+async function exportDatabase() {
+  const pass = prompt("Пароль для защиты экспорта (минимум 8 символов):");
+  if (!pass || pass.length < 8) {
+    alert("Пароль слишком короткий!");
+    return;
+  }
+
+  try {
+    const tx = db.transaction("notes", "readonly");
+    const store = tx.objectStore("notes");
+    const notes = await new Promise((res, rej) => {
+      const req = store.getAll();
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+
+    const json = JSON.stringify(notes);
+    const encrypted = await encrypt(json, pass);
+
+    const blob = new Blob([encrypted], {type: "text/plain"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "secure-notes-" + new Date().toISOString().slice(0,10) + ".enc";
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    alert("Экспорт готов! Храните файл в безопасном месте.");
+  } catch (e) {
+    alert("Ошибка экспорта: " + e.message);
+  }
+}
+
+function importDatabase() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".enc,text/plain";
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const encrypted = reader.result;
+      const pass = prompt("Пароль экспорта:");
+      if (!pass) return;
+
+      try {
+        const json = await decrypt(encrypted, pass);
+        const imported = JSON.parse(json);
+
+        if (!confirm(`Заменить текущее хранилище?\nБудет импортировано ${imported.length} заметок.`)) return;
+
+        // Очистка старого
+        await new Promise(r => {
+          const tx = db.transaction("notes", "readwrite");
+          tx.objectStore("notes").clear().onsuccess = r;
+        });
+
+        // Добавление новых
+        const tx = db.transaction("notes", "readwrite");
+        const store = tx.objectStore("notes");
+        imported.forEach(note => {
+          const {id, ...rest} = note; // убираем старый id
+          store.add(rest);
+        });
+
+        await new Promise(r => tx.oncomplete = r);
+        loadNotes();
+        alert("Импорт завершён!");
+      } catch (e) {
+        alert("Ошибка импорта: неверный пароль или файл повреждён.\n" + e.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ===== Theme toggle & load =====
+function toggleTheme() {
+  const body = document.body;
+  body.classList.toggle("dark");
+  if (body.classList.contains("dark")) {
+    localStorage.setItem("theme", "dark");
+    document.getElementById("themeBtn").innerText = "☀";
+  } else {
+    localStorage.setItem("theme", "light");
+    document.getElementById("themeBtn").innerText = "🌙";
+  }
+}
+
+window.addEventListener("load", () => {
+  const saved = localStorage.getItem("theme");
+  if (saved === "dark") {
+    document.body.classList.add("dark");
+    document.getElementById("themeBtn").innerText = "☀";
+  }
+});
 </script>
 
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').then(reg => {
-
-    // проверка обновлений каждые 30 секунд
-    setInterval(() => {
-      reg.update();
-    }, 30000);
-
+    setInterval(() => reg.update(), 30000);
   });
 }
-function toggleTheme(){
-  const body=document.body;
-  body.classList.toggle("dark");
-
-  if(body.classList.contains("dark")){
-    localStorage.setItem("theme","dark");
-    document.getElementById("themeBtn").innerText="☀";
-  } else {
-    localStorage.setItem("theme","light");
-    document.getElementById("themeBtn").innerText="🌙";
-  }
-}
-
-window.addEventListener("load",()=>{
-  const saved=localStorage.getItem("theme");
-  if(saved==="dark"){
-    document.body.classList.add("dark");
-    document.getElementById("themeBtn").innerText="☀";
-  }
-});
 </script>
 
 <div id="shareMenu" onclick="closeShareMenu()">
   <div class="share-sheet" onclick="event.stopPropagation()">
-    <div class="share-handle"></div> <!-- полоска сверху -->
+    <div class="share-handle"></div>
     <div class="share-option" onclick="shareAsText()">🔒 Encrypted text</div>
     <div class="share-option" onclick="shareAsFile()">📄 TXT file</div>
   </div>
 </div>
+
 </body>
 </html>
