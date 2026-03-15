@@ -245,7 +245,8 @@ function loadNotes(){
   const request=store.getAll();
   request.onsuccess=function(){
     const notes=request.result;
-    const list=document.getElementById("notesList");
+    notes.reverse();
+const list=document.getElementById("notesList");
     list.innerHTML="";
     notes.forEach(note=>{
       const dateFormatted = note.date.replace(", ","-");
