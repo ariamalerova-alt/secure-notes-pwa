@@ -124,6 +124,7 @@ body.dark .share-option {
   border: none;
   cursor: pointer;
 }
+textarea { -webkit-user-select: text; user-select: text; }
 </style>
 </head>
 <body>
@@ -293,15 +294,8 @@ async function encryptSave() {
     const store = tx.objectStore("notes");
     store.add({title: title, date: new Date().toLocaleString(), data: ciphertext});
 
-    // Показываем зашифрованный текст
-    const textarea = document.getElementById("note");
-    textarea.value = ciphertext;
-
-    // Полное выделение после сохранения
-    setTimeout(() => {
-      textarea.focus();
-      textarea.select();
-    }, 100);
+    // Просто показываем текст — без выделения и без клавиатуры
+    document.getElementById("note").value = ciphertext;
 
     await new Promise(r => tx.oncomplete = r);
     loadNotes();
@@ -327,14 +321,8 @@ async function decryptCopy() {
     const textarea = document.getElementById("note");
     textarea.value = decryptedText;
 
-    // Сначала alert (чтобы клавиатура не мерцала)
+    // Сначала alert, потом копирование — клавиатура не появляется
     alert("Расшифровано и скопировано в буфер!");
-
-    // После закрытия alert — полное выделение (как было раньше)
-    setTimeout(() => {
-      textarea.focus();
-      textarea.select();
-    }, 100);
 
     try {
       await navigator.clipboard.writeText(decryptedText);
@@ -370,14 +358,8 @@ function loadFile() {
     const reader = new FileReader();
     reader.onload = evt => {
       const textarea = document.getElementById("note");
-
-      textarea.blur();                 // снимаем старый фокус
       textarea.value = evt.target.result;
-
-      setTimeout(() => {
-        textarea.focus();
-        textarea.select();             // ← главное: полное выделение
-      }, 100);
+      // Без focus/select — клавиатура не всплывает
     };
     reader.readAsText(file);
   };
@@ -431,14 +413,8 @@ function openNote(id) {
   const store = tx.objectStore("notes");
   const request = store.get(id);
   request.onsuccess = function() {
-    const textarea = document.getElementById("note");
-    textarea.value = request.result.data;
-
-    // Полное выделение для длинных зашифрованных строк
-    setTimeout(() => {
-      textarea.focus();
-      textarea.select();
-    }, 100);
+    document.getElementById("note").value = request.result.data;
+    // Без focus/select — текст спокойный, long-press работает
   };
 }
 
