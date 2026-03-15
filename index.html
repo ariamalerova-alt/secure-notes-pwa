@@ -291,9 +291,12 @@ async function encryptSave() {
     const title = prompt("Название заметки:") || "Без названия";
     const tx = db.transaction("notes", "readwrite");
     const store = tx.objectStore("notes");
-    store.add({title, date: new Date().toLocaleString(), data: ciphertext});
-    await new Promise(r => tx.oncomplete = r);
+    store.add({title: title, date: new Date().toLocaleString(), data: ciphertext});
 
+    // ←←← ВОТ ЭТА СТРОКА БЫЛА УБРАНА — теперь возвращена
+    document.getElementById("note").value = ciphertext;
+
+    await new Promise(r => tx.oncomplete = r);
     loadNotes();
     alert("Заметка сохранена (новый формат)!");
   } catch (e) {
@@ -366,22 +369,34 @@ function loadNotes() {
   const store = tx.objectStore("notes");
   const request = store.getAll();
   request.onsuccess = function() {
-    const notes = request.result;
+    let notes = request.result;
     notes.reverse();
+
     const list = document.getElementById("notesList");
     list.innerHTML = "";
+
     notes.forEach(note => {
-      const dateFormatted = note.date.replace(", ", "-");
+      const dateFormatted = (note.date || "").replace(", ", "-");
+
       const div = document.createElement("div");
       div.className = "note-item";
-      div.innerHTML = `<div class="note-title">\( {note.title}- \){dateFormatted}</div>
-        <div class="note-links">
-          <a href="#" onclick="openNote(${note.id})">Open</a>
-          <a href="#" onclick="downloadNote(${note.id})">Download</a>
-          <a href="#" onclick="renameNote(${note.id})">Rename</a>
-          <a href="#" onclick="shareNote(${note.id})">Share</a>
-          <a href="#" onclick="deleteNote(${note.id})">Delete</a>
-        </div>`;
+
+      const titleDiv = document.createElement("div");
+      titleDiv.className = "note-title";
+      titleDiv.textContent = `${note.title || "Без названия"} — ${dateFormatted}`;
+
+      const linksDiv = document.createElement("div");
+      linksDiv.className = "note-links";
+      linksDiv.innerHTML = `
+        <a href="#" onclick="openNote(${note.id})">Open</a>
+        <a href="#" onclick="downloadNote(${note.id})">Download</a>
+        <a href="#" onclick="renameNote(${note.id})">Rename</a>
+        <a href="#" onclick="shareNote(${note.id})">Share</a>
+        <a href="#" onclick="deleteNote(${note.id})">Delete</a>
+      `;
+
+      div.appendChild(titleDiv);
+      div.appendChild(linksDiv);
       list.appendChild(div);
     });
   };
